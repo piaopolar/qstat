@@ -184,6 +184,31 @@ send_tf_request_packet(struct qserver *server)
 	return (qserver_send_initial(server, buf, len));
 }
 
+void print_platform_count(uint8_t platform_key, uint8_t platform_value)
+{	
+	char *hardware_names_table[] =
+	{
+		"X1",	// XBOXONE,
+		"PS4",	// PS4,
+		"PC_ORIGIN",	// PC-origin
+		"IPHONE", // IPHONE,
+		"ANDROID", // ANDROID,
+		"SERVER", // VOICE_SERVER,
+		"PC_ORIGIN_DEPRECIATED",
+		"PC_STEAM", // PC_STEAM
+		"PS5",	// PS5
+		"SWITCH", // SWITCH
+		""
+	};
+
+	char* hardware_name = "UNKNOWN";
+	if (platform_key <= sizeof(hardware_names_table) / sizeof(hardware_names_table[0])) {
+		hardware_name = hardware_names_table[platform_key];
+	}
+
+	debug(2, "platform %s count %hhu", hardware_name, platform_value);
+}
+
 
 query_status_t
 deal_with_tf_packet(struct qserver *server, char *rawpkt, int pktlen)
@@ -191,7 +216,7 @@ deal_with_tf_packet(struct qserver *server, char *rawpkt, int pktlen)
 	char *pkt, buf[64];
 	query_status_t ret;
 	int rem;
-	uint8_t ver, tmpu8;
+	uint8_t ver, platform_num, platform_key, tmpu8;
 	uint16_t port, tmpu16;
 	uint32_t tmpu32;
 	uint64_t tmpu64;
@@ -318,8 +343,30 @@ deal_with_tf_packet(struct qserver *server, char *rawpkt, int pktlen)
 		return (ret);
 	}
 
+    if (ver > 6) {
+
+        ret = pkt_byte(server, &pkt, &rem, &platform_num, "platform_num");
+        if (ret < 0) {
+            return (ret);
+        }
+
+        while (platform_num--) {
+            ret = pkt_byte(server, &pkt, &rem, &platform_key, "platform_key");
+            if (ret < 0) {
+                return (ret);
+            }
+
+            ret = pkt_byte(server, &pkt, &rem, &tmpu8, "platform_value");
+            if (ret < 0) {
+                return (ret);
+            }
+
+            print_platform_count(platform_key, tmpu8);
+        }
+    }
+
 	// Num Clients (byte)
-	ret = pkt_byte(server, &pkt, &rem, (uint8_t *)&server->num_players, NULL);
+	ret = pkt_byte(server, &pkt, &rem, (uint8_t *)&server->num_players, "player_num");
 	if (ret < 0) {
 		return (ret);
 	}
@@ -399,6 +446,14 @@ deal_with_tf_packet(struct qserver *server, char *rawpkt, int pktlen)
 		ret = pkt_short(server, &pkt, &rem, &tmpu16, "max_score");
 		if (ret < 0) {
 			return (ret);
+		}
+
+
+		if (ver > 5) {
+			ret = pkt_short(server, &pkt, &rem, &tmpu16, "teams_left_with_players_num");
+			if (ret < 0) {
+				return (ret);
+			}
 		}
 
 		// Team (byte)
