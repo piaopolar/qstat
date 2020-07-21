@@ -188,10 +188,10 @@ send_tf_request_packet(struct qserver *server)
 query_status_t
 deal_with_tf_packet(struct qserver *server, char *rawpkt, int pktlen)
 {
-	char *pkt, buf[64];
+	char *pkt, *str, buf[64];
 	query_status_t ret;
 	int rem;
-	uint8_t ver, tmpu8;
+	uint8_t ver, platform_num, tmpu8;
 	uint16_t port, tmpu16;
 	uint32_t tmpu32;
 	uint64_t tmpu64;
@@ -318,8 +318,31 @@ deal_with_tf_packet(struct qserver *server, char *rawpkt, int pktlen)
 		return (ret);
 	}
 
+    if (ver > 6) {
+
+        // Platform Num (byte)
+        ret = pkt_byte(server, &pkt, &rem, &platform_num, "platform_num");
+        if (ret < 0) {
+            return (ret);
+        }
+
+        while (platform_num--) {
+            // Platform Name (string)
+            ret = pkt_string(server, &pkt, &rem, &str, NULL);
+            if (ret < 0) {
+                return (ret);
+            }
+
+            // Player Count (byte)
+            ret = pkt_byte(server, &pkt, &rem, &tmpu8, str);
+            if (ret < 0) {
+                return (ret);
+            }
+        }
+    }
+
 	// Num Clients (byte)
-	ret = pkt_byte(server, &pkt, &rem, (uint8_t *)&server->num_players, NULL);
+	ret = pkt_byte(server, &pkt, &rem, (uint8_t *)&server->num_players, "player_num");
 	if (ret < 0) {
 		return (ret);
 	}
@@ -399,6 +422,14 @@ deal_with_tf_packet(struct qserver *server, char *rawpkt, int pktlen)
 		ret = pkt_short(server, &pkt, &rem, &tmpu16, "max_score");
 		if (ret < 0) {
 			return (ret);
+		}
+
+
+		if (ver > 5) {
+			ret = pkt_short(server, &pkt, &rem, &tmpu16, "teams_left_with_players_num");
+			if (ret < 0) {
+				return (ret);
+			}
 		}
 
 		// Team (byte)
